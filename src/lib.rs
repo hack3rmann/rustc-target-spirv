@@ -3,40 +3,85 @@
 
 extern crate rustc_codegen_ssa;
 extern crate rustc_data_structures;
+extern crate rustc_errors;
 extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use rustc_codegen_ssa::traits::CodegenBackend;
+use rustc_codegen_ssa::{
+    back::{
+        lto::{LtoModuleCodegen, SerializedModule, ThinModule},
+        write::{CodegenContext, FatLtoInput, ModuleConfig},
+    },
+    traits::{CodegenBackend, ModuleBufferMethods, ThinBufferMethods, WriteBackendMethods},
+    CodegenResults, CompiledModule, ModuleCodegen,
+};
+use rustc_data_structures::fx::FxIndexMap;
+use rustc_errors::{DiagCtxtHandle, FatalError};
+use rustc_metadata::{creader::MetadataLoaderDyn, EncodedMetadata};
+use rustc_middle::{
+    dep_graph::{WorkProduct, WorkProductId},
+    ty::TyCtxt,
+    util::Providers,
+};
+use rustc_session::{
+    config::{OutputFilenames, PrintRequest},
+    Session,
+};
+use rustc_span::{ErrorGuaranteed, Symbol};
+use std::any::Any;
+
+pub type Word = u32;
+
+#[derive(Clone, Debug, PartialEq, Default)]
+struct SpirvModuleBuffer {
+    data: Vec<Word>,
+}
+
+impl ModuleBufferMethods for SpirvModuleBuffer {
+    fn data(&self) -> &[u8] {
+        spirv_tools::binary::from_binary(&self.data)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+struct SpirvThinBuffer {
+    data: Vec<Word>,
+}
+
+impl ThinBufferMethods for SpirvThinBuffer {
+    fn data(&self) -> &[u8] {
+        spirv_tools::binary::from_binary(&self.data)
+    }
+
+    fn thin_link_data(&self) -> &[u8] {
+        todo!()
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 struct SpirvCodegenBackend;
 
 impl CodegenBackend for SpirvCodegenBackend {
-    fn init(&self, _sess: &rustc_session::Session) {
+    fn init(&self, _sess: &Session) {
         todo!()
     }
 
     fn link(
         &self,
-        _sess: &rustc_session::Session,
-        _codegen_results: rustc_codegen_ssa::CodegenResults,
-        _outputs: &rustc_session::config::OutputFilenames,
-    ) -> Result<(), rustc_span::ErrorGuaranteed> {
+        _sess: &Session,
+        _codegen_results: CodegenResults,
+        _outputs: &OutputFilenames,
+    ) -> Result<(), ErrorGuaranteed> {
         todo!()
     }
 
-    fn print(
-        &self,
-        _req: &rustc_session::config::PrintRequest,
-        _out: &mut String,
-        _sess: &rustc_session::Session,
-    ) {
+    fn print(&self, _req: &PrintRequest, _out: &mut String, _sess: &Session) {
         todo!()
     }
 
-    fn provide(&self, _providers: &mut rustc_middle::util::Providers) {
+    fn provide(&self, _providers: &mut Providers) {
         todo!()
     }
 
@@ -46,16 +91,10 @@ impl CodegenBackend for SpirvCodegenBackend {
 
     fn join_codegen(
         &self,
-        _ongoing_codegen: Box<dyn std::any::Any>,
-        _sess: &rustc_session::Session,
-        _outputs: &rustc_session::config::OutputFilenames,
-    ) -> (
-        rustc_codegen_ssa::CodegenResults,
-        rustc_data_structures::fx::FxIndexMap<
-            rustc_middle::dep_graph::WorkProductId,
-            rustc_middle::dep_graph::WorkProduct,
-        >,
-    ) {
+        _ongoing_codegen: Box<dyn Any>,
+        _sess: &Session,
+        _outputs: &OutputFilenames,
+    ) -> (CodegenResults, FxIndexMap<WorkProductId, WorkProduct>) {
         todo!()
     }
 
@@ -65,10 +104,10 @@ impl CodegenBackend for SpirvCodegenBackend {
 
     fn codegen_crate(
         &self,
-        _tcx: rustc_middle::ty::TyCtxt<'_>,
-        _metadata: rustc_metadata::EncodedMetadata,
+        _tcx: TyCtxt<'_>,
+        _metadata: EncodedMetadata,
         _need_metadata_module: bool,
-    ) -> Box<dyn std::any::Any> {
+    ) -> Box<dyn Any> {
         todo!()
     }
 
@@ -76,19 +115,99 @@ impl CodegenBackend for SpirvCodegenBackend {
         todo!()
     }
 
-    fn target_features(
-        &self,
-        _sess: &rustc_session::Session,
-        _allow_unstable: bool,
-    ) -> Vec<rustc_span::Symbol> {
+    fn target_features(&self, _sess: &Session, _allow_unstable: bool) -> Vec<Symbol> {
         todo!()
     }
 
-    fn metadata_loader(&self) -> Box<rustc_metadata::creader::MetadataLoaderDyn> {
+    fn metadata_loader(&self) -> Box<MetadataLoaderDyn> {
         todo!()
     }
 
     fn supports_parallel(&self) -> bool {
+        todo!()
+    }
+}
+
+impl WriteBackendMethods for SpirvCodegenBackend {
+    type Module = ();
+    type ThinData = ();
+    type ThinBuffer = SpirvThinBuffer;
+    type ModuleBuffer = SpirvModuleBuffer;
+    type TargetMachine = ();
+    type TargetMachineError = ();
+
+    fn run_thin_lto(
+        _cgcx: &CodegenContext<Self>,
+        _modules: Vec<(String, Self::ThinBuffer)>,
+        _cached_modules: Vec<(SerializedModule<Self::ModuleBuffer>, WorkProduct)>,
+    ) -> Result<(Vec<LtoModuleCodegen<Self>>, Vec<WorkProduct>), FatalError> {
+        todo!()
+    }
+
+    fn run_link(
+        _cgcx: &CodegenContext<Self>,
+        _dcx: DiagCtxtHandle<'_>,
+        _modules: Vec<ModuleCodegen<Self::Module>>,
+    ) -> Result<ModuleCodegen<Self::Module>, FatalError> {
+        todo!()
+    }
+
+    fn print_statistics(&self) {
+        todo!()
+    }
+
+    fn print_pass_timings(&self) {
+        todo!()
+    }
+
+    unsafe fn codegen(
+        _cgcx: &CodegenContext<Self>,
+        _dcx: DiagCtxtHandle<'_>,
+        _module: ModuleCodegen<Self::Module>,
+        _config: &ModuleConfig,
+    ) -> Result<CompiledModule, FatalError> {
+        todo!()
+    }
+
+    unsafe fn optimize(
+        _cgcx: &CodegenContext<Self>,
+        _dcx: DiagCtxtHandle<'_>,
+        _module: &ModuleCodegen<Self::Module>,
+        _config: &ModuleConfig,
+    ) -> Result<(), FatalError> {
+        todo!()
+    }
+
+    fn run_fat_lto(
+        _cgcx: &CodegenContext<Self>,
+        _modules: Vec<FatLtoInput<Self>>,
+        _cached_modules: Vec<(SerializedModule<Self::ModuleBuffer>, WorkProduct)>,
+    ) -> Result<LtoModuleCodegen<Self>, FatalError> {
+        todo!()
+    }
+
+    fn optimize_fat(
+        _cgcx: &CodegenContext<Self>,
+        _llmod: &mut ModuleCodegen<Self::Module>,
+    ) -> Result<(), FatalError> {
+        todo!()
+    }
+
+    fn prepare_thin(
+        _module: ModuleCodegen<Self::Module>,
+        _want_summary: bool,
+    ) -> (String, Self::ThinBuffer) {
+        todo!()
+    }
+
+    unsafe fn optimize_thin(
+        _cgcx: &CodegenContext<Self>,
+        _thin: ThinModule<Self>,
+    ) -> Result<ModuleCodegen<Self::Module>, FatalError> {
+        todo!()
+    }
+
+    fn serialize_module(_module: ModuleCodegen<Self::Module>) -> (String, Self::ModuleBuffer) {
         todo!()
     }
 }

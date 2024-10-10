@@ -8,6 +8,7 @@ edition = "2021"
 crate-type = ["dylib"]
 
 [dependencies]
+spirv-tools = "0.10.0"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
