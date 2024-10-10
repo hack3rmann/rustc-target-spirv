@@ -1,6 +1,8 @@
 #![feature(rustc_private)]
 #![allow(unsafe_code)]
 
+pub mod codegen;
+
 extern crate rustc_ast;
 extern crate rustc_codegen_ssa;
 extern crate rustc_data_structures;
@@ -36,8 +38,7 @@ use rustc_session::{
 };
 use rustc_span::{ErrorGuaranteed, Symbol};
 use std::{any::Any, io, thread};
-
-pub type Word = u32;
+use codegen::spirv_types::Word;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 struct SpirvModuleBuffer {
