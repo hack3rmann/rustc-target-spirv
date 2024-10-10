@@ -1,6 +1,7 @@
 #![feature(rustc_private)]
 #![allow(unsafe_code)]
 
+extern crate rustc_ast;
 extern crate rustc_codegen_ssa;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -9,12 +10,16 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
+use rustc_ast::expand::allocator::AllocatorKind;
 use rustc_codegen_ssa::{
     back::{
         lto::{LtoModuleCodegen, SerializedModule, ThinModule},
-        write::{CodegenContext, FatLtoInput, ModuleConfig},
+        write::{CodegenContext, FatLtoInput, ModuleConfig, TargetMachineFactoryFn},
     },
-    traits::{CodegenBackend, ModuleBufferMethods, ThinBufferMethods, WriteBackendMethods},
+    traits::{
+        CodegenBackend, ExtraBackendMethods, ModuleBufferMethods, ThinBufferMethods,
+        WriteBackendMethods,
+    },
     CodegenResults, CompiledModule, ModuleCodegen,
 };
 use rustc_data_structures::fx::FxIndexMap;
@@ -26,11 +31,11 @@ use rustc_middle::{
     util::Providers,
 };
 use rustc_session::{
-    config::{OutputFilenames, PrintRequest},
+    config::{OptLevel, OutputFilenames, PrintRequest},
     Session,
 };
 use rustc_span::{ErrorGuaranteed, Symbol};
-use std::any::Any;
+use std::{any::Any, io, thread};
 
 pub type Word = u32;
 
@@ -129,12 +134,12 @@ impl CodegenBackend for SpirvCodegenBackend {
 }
 
 impl WriteBackendMethods for SpirvCodegenBackend {
-    type Module = ();
+    type Module = Vec<Word>;
     type ThinData = ();
     type ThinBuffer = SpirvThinBuffer;
     type ModuleBuffer = SpirvModuleBuffer;
     type TargetMachine = ();
-    type TargetMachineError = ();
+    type TargetMachineError = String;
 
     fn run_thin_lto(
         _cgcx: &CodegenContext<Self>,
@@ -194,10 +199,15 @@ impl WriteBackendMethods for SpirvCodegenBackend {
     }
 
     fn prepare_thin(
-        _module: ModuleCodegen<Self::Module>,
+        module: ModuleCodegen<Self::Module>,
         _want_summary: bool,
     ) -> (String, Self::ThinBuffer) {
-        todo!()
+        (
+            module.name,
+            SpirvThinBuffer {
+                data: module.module_llvm,
+            },
+        )
     }
 
     unsafe fn optimize_thin(
@@ -208,6 +218,48 @@ impl WriteBackendMethods for SpirvCodegenBackend {
     }
 
     fn serialize_module(_module: ModuleCodegen<Self::Module>) -> (String, Self::ModuleBuffer) {
+        todo!()
+    }
+}
+
+impl ExtraBackendMethods for SpirvCodegenBackend {
+    fn codegen_allocator(
+        &self,
+        _tcx: TyCtxt<'_>,
+        _module_name: &str,
+        _kind: AllocatorKind,
+        _alloc_error_handler_kind: AllocatorKind,
+    ) -> Self::Module {
+        todo!()
+    }
+
+    fn compile_codegen_unit(
+        &self,
+        _tcx: TyCtxt<'_>,
+        _cgu_name: Symbol,
+    ) -> (ModuleCodegen<Self::Module>, u64) {
+        todo!()
+    }
+
+    fn target_machine_factory(
+        &self,
+        _sess: &Session,
+        _opt_level: OptLevel,
+        _target_features: &[String],
+    ) -> TargetMachineFactoryFn<Self> {
+        todo!()
+    }
+
+    fn spawn_named_thread<F, T>(
+        _time_trace: bool,
+        _name: String,
+        _f: F,
+    ) -> io::Result<thread::JoinHandle<T>>
+    where
+        F: FnOnce() -> T,
+        F: Send + 'static,
+        T: Send + 'static,
+    {
         todo!()
     }
 }
