@@ -6,17 +6,21 @@ pub mod codegen;
 extern crate rustc_ast;
 extern crate rustc_codegen_ssa;
 extern crate rustc_data_structures;
+extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
+use codegen::spirv_types::Word;
 use rustc_ast::expand::allocator::AllocatorKind;
 use rustc_codegen_ssa::{
     back::{
         lto::{LtoModuleCodegen, SerializedModule, ThinModule},
-        write::{CodegenContext, FatLtoInput, ModuleConfig, TargetMachineFactoryFn},
+        write::{
+            CodegenContext, FatLtoInput, ModuleConfig, OngoingCodegen, TargetMachineFactoryFn,
+        },
     },
     traits::{
         CodegenBackend, ExtraBackendMethods, ModuleBufferMethods, ThinBufferMethods,
@@ -26,7 +30,7 @@ use rustc_codegen_ssa::{
 };
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::{DiagCtxtHandle, FatalError};
-use rustc_metadata::{creader::MetadataLoaderDyn, EncodedMetadata};
+use rustc_metadata::EncodedMetadata;
 use rustc_middle::{
     dep_graph::{WorkProduct, WorkProductId},
     ty::TyCtxt,
@@ -38,7 +42,6 @@ use rustc_session::{
 };
 use rustc_span::{ErrorGuaranteed, Symbol};
 use std::{any::Any, io, thread};
-use codegen::spirv_types::Word;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 struct SpirvModuleBuffer {
@@ -71,7 +74,7 @@ struct SpirvCodegenBackend;
 
 impl CodegenBackend for SpirvCodegenBackend {
     fn init(&self, _sess: &Session) {
-        todo!()
+        // TODO:
     }
 
     fn link(
@@ -83,28 +86,12 @@ impl CodegenBackend for SpirvCodegenBackend {
         todo!()
     }
 
-    fn print(&self, _req: &PrintRequest, _out: &mut String, _sess: &Session) {
-        todo!()
-    }
-
-    fn provide(&self, _providers: &mut Providers) {
-        todo!()
-    }
-
-    fn print_passes(&self) {
-        todo!()
-    }
-
     fn join_codegen(
         &self,
         _ongoing_codegen: Box<dyn Any>,
         _sess: &Session,
         _outputs: &OutputFilenames,
     ) -> (CodegenResults, FxIndexMap<WorkProductId, WorkProduct>) {
-        todo!()
-    }
-
-    fn print_version(&self) {
         todo!()
     }
 
@@ -118,19 +105,7 @@ impl CodegenBackend for SpirvCodegenBackend {
     }
 
     fn locale_resource(&self) -> &'static str {
-        todo!()
-    }
-
-    fn target_features(&self, _sess: &Session, _allow_unstable: bool) -> Vec<Symbol> {
-        todo!()
-    }
-
-    fn metadata_loader(&self) -> Box<MetadataLoaderDyn> {
-        todo!()
-    }
-
-    fn supports_parallel(&self) -> bool {
-        todo!()
+        rustc_errors::DEFAULT_LOCALE_RESOURCE
     }
 }
 

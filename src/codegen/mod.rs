@@ -2,7 +2,7 @@ pub mod spirv_types;
 
 use rustc_middle::{
     mir::mono::CodegenUnit,
-    ty::{self, Ty, TyCtxt},
+    ty::{TyCtxt},
 };
 
 pub struct CodegenContext<'tcx> {
