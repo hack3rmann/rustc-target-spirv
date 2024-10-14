@@ -26,7 +26,7 @@ use rustc_codegen_ssa::{
         CodegenBackend, ExtraBackendMethods, ModuleBufferMethods, ThinBufferMethods,
         WriteBackendMethods,
     },
-    CodegenResults, CompiledModule, ModuleCodegen,
+    CodegenResults, CompiledModule, ModuleCodegen, ModuleKind,
 };
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::{DiagCtxtHandle, FatalError};
@@ -37,11 +37,17 @@ use rustc_middle::{
     util::Providers,
 };
 use rustc_session::{
-    config::{OptLevel, OutputFilenames, PrintRequest},
+    config::{OptLevel, OutputFilenames, OutputType, PrintRequest},
     Session,
 };
 use rustc_span::{ErrorGuaranteed, Symbol};
-use std::{any::Any, io, thread};
+use std::{
+    any::Any,
+    fs::File,
+    io::{self, Write},
+    sync::Arc,
+    thread,
+};
 
 #[derive(Clone, Debug, PartialEq, Default)]
 struct SpirvModuleBuffer {
@@ -86,22 +92,44 @@ impl CodegenBackend for SpirvCodegenBackend {
         todo!()
     }
 
+    fn provide(&self, providers: &mut Providers) {
+        // FIXME: global backend providers
+        providers.global_backend_features = |_tcx, ()| vec![];
+    }
+
     fn join_codegen(
         &self,
-        _ongoing_codegen: Box<dyn Any>,
-        _sess: &Session,
+        ongoing_codegen: Box<dyn Any>,
+        session: &Session,
         _outputs: &OutputFilenames,
     ) -> (CodegenResults, FxIndexMap<WorkProductId, WorkProduct>) {
-        todo!()
+        let (codegen_results, work_products) = ongoing_codegen
+            .downcast::<OngoingCodegen<Self>>()
+            .expect("Expected OngoingCodegen, found Box<Any>")
+            .join(session);
+
+        (codegen_results, work_products)
     }
 
     fn codegen_crate(
         &self,
-        _tcx: TyCtxt<'_>,
-        _metadata: EncodedMetadata,
-        _need_metadata_module: bool,
+        type_context: TyCtxt<'_>,
+        metadata: EncodedMetadata,
+        need_metadata_module: bool,
     ) -> Box<dyn Any> {
-        todo!()
+        Box::new(rustc_codegen_ssa::base::codegen_crate(
+            Self,
+            type_context,
+            type_context
+                .sess
+                .opts
+                .cg
+                .target_cpu
+                .clone()
+                .unwrap_or_else(|| type_context.sess.target.cpu.to_string()),
+            metadata,
+            need_metadata_module,
+        ))
     }
 
     fn locale_resource(&self) -> &'static str {
@@ -134,20 +162,39 @@ impl WriteBackendMethods for SpirvCodegenBackend {
     }
 
     fn print_statistics(&self) {
-        todo!()
+        eprintln!("TODO: print statistics");
     }
 
     fn print_pass_timings(&self) {
-        todo!()
+        eprintln!("TODO: print pass timings");
     }
 
     unsafe fn codegen(
-        _cgcx: &CodegenContext<Self>,
+        codegen_context: &CodegenContext<Self>,
         _dcx: DiagCtxtHandle<'_>,
-        _module: ModuleCodegen<Self::Module>,
+        module: ModuleCodegen<Self::Module>,
         _config: &ModuleConfig,
     ) -> Result<CompiledModule, FatalError> {
-        todo!()
+        let object_path = codegen_context
+            .output_filenames
+            .temp_path(OutputType::Object, Some(&module.name));
+
+        let spirv_module = spirv_tools::binary::from_binary(&module.module_llvm);
+
+        File::create(&object_path)
+            .unwrap()
+            .write_all(spirv_module)
+            .unwrap();
+
+        Ok(CompiledModule {
+            name: module.name,
+            kind: module.kind,
+            object: Some(object_path),
+            dwarf_object: None,
+            bytecode: None,
+            assembly: None,
+            llvm_ir: None,
+        })
     }
 
     unsafe fn optimize(
@@ -156,7 +203,8 @@ impl WriteBackendMethods for SpirvCodegenBackend {
         _module: &ModuleCodegen<Self::Module>,
         _config: &ModuleConfig,
     ) -> Result<(), FatalError> {
-        todo!()
+        // FIXME: optimize
+        Ok(())
     }
 
     fn run_fat_lto(
@@ -187,34 +235,53 @@ impl WriteBackendMethods for SpirvCodegenBackend {
     }
 
     unsafe fn optimize_thin(
-        _cgcx: &CodegenContext<Self>,
-        _thin: ThinModule<Self>,
+        _codegen_context: &CodegenContext<Self>,
+        thin_module: ThinModule<Self>,
     ) -> Result<ModuleCodegen<Self::Module>, FatalError> {
-        todo!()
+        // FIXME: optimize
+
+        let module = ModuleCodegen {
+            module_llvm: spirv_tools::binary::to_binary(thin_module.data())
+                .unwrap()
+                .to_vec(),
+            name: thin_module.name().to_string(),
+            kind: ModuleKind::Regular,
+        };
+
+        Ok(module)
     }
 
-    fn serialize_module(_module: ModuleCodegen<Self::Module>) -> (String, Self::ModuleBuffer) {
-        todo!()
+    fn serialize_module(module: ModuleCodegen<Self::Module>) -> (String, Self::ModuleBuffer) {
+        (
+            module.name,
+            SpirvModuleBuffer {
+                data: module.module_llvm,
+            },
+        )
     }
 }
 
 impl ExtraBackendMethods for SpirvCodegenBackend {
     fn codegen_allocator(
         &self,
-        _tcx: TyCtxt<'_>,
+        _type_context: TyCtxt<'_>,
         _module_name: &str,
         _kind: AllocatorKind,
         _alloc_error_handler_kind: AllocatorKind,
     ) -> Self::Module {
-        todo!()
+        // TODO: codegen allocator
+        vec![]
     }
 
     fn compile_codegen_unit(
         &self,
-        _tcx: TyCtxt<'_>,
-        _cgu_name: Symbol,
+        type_context: TyCtxt<'_>,
+        codegen_unit_name: Symbol,
     ) -> (ModuleCodegen<Self::Module>, u64) {
-        todo!()
+        let codegen_unit = type_context.codegen_unit(codegen_unit_name);
+        eprintln!("CODEGEN_UNIT_NAME={}", codegen_unit.name());
+
+        todo!("compile rust to spirv")
     }
 
     fn target_machine_factory(
@@ -223,20 +290,7 @@ impl ExtraBackendMethods for SpirvCodegenBackend {
         _opt_level: OptLevel,
         _target_features: &[String],
     ) -> TargetMachineFactoryFn<Self> {
-        todo!()
-    }
-
-    fn spawn_named_thread<F, T>(
-        _time_trace: bool,
-        _name: String,
-        _f: F,
-    ) -> io::Result<thread::JoinHandle<T>>
-    where
-        F: FnOnce() -> T,
-        F: Send + 'static,
-        T: Send + 'static,
-    {
-        todo!()
+        Arc::new(|_| Ok(()))
     }
 }
 
