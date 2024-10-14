@@ -89,7 +89,8 @@ impl CodegenBackend for SpirvCodegenBackend {
         _codegen_results: CodegenResults,
         _outputs: &OutputFilenames,
     ) -> Result<(), ErrorGuaranteed> {
-        todo!()
+        // TODO:
+        Ok(())
     }
 
     fn provide(&self, providers: &mut Providers) {
@@ -278,10 +279,17 @@ impl ExtraBackendMethods for SpirvCodegenBackend {
         type_context: TyCtxt<'_>,
         codegen_unit_name: Symbol,
     ) -> (ModuleCodegen<Self::Module>, u64) {
-        let codegen_unit = type_context.codegen_unit(codegen_unit_name);
-        eprintln!("CODEGEN_UNIT_NAME={}", codegen_unit.name());
+        let _codegen_unit = type_context.codegen_unit(codegen_unit_name);
+        let module_llvm = vec![];
 
-        todo!("compile rust to spirv")
+        (
+            ModuleCodegen {
+                name: codegen_unit_name.to_string(),
+                module_llvm,
+                kind: ModuleKind::Regular,
+            },
+            0,
+        )
     }
 
     fn target_machine_factory(
